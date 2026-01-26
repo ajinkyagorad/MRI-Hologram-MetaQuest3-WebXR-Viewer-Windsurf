@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Text } from '@react-three/drei';
+import { useXR } from '@react-three/xr';
 import { MRIState, NiftiData } from '../types';
 import { VolumeShader } from './VolumeMaterial';
 
@@ -10,15 +11,17 @@ interface MRIViewerProps {
   t1Data: NiftiData | null;
   t2Data: NiftiData | null;
   state: MRIState;
+  setState: React.Dispatch<React.SetStateAction<MRIState>>;
 }
 
-const MRIViewer: React.FC<MRIViewerProps> = ({ t1Data, t2Data, state }) => {
+const MRIViewer: React.FC<MRIViewerProps> = ({ t1Data, t2Data, state, setState }) => {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
   const volumeGroupRef = useRef<THREE.Group>(null);
   const [isRotating, setIsRotating] = useState(true);
   const [hoveredCorner, setHoveredCorner] = useState<number | null>(null);
   const [isDraggingCorner, setIsDraggingCorner] = useState(false);
   const { camera } = useThree();
+  const xr = useXR();
   const dragPlaneRef = useRef<THREE.Plane | null>(null);
   const dragOffsetLocalRef = useRef<THREE.Vector3 | null>(null);
   const activeCornerRef = useRef<number | null>(null);
@@ -138,6 +141,55 @@ const MRIViewer: React.FC<MRIViewerProps> = ({ t1Data, t2Data, state }) => {
 
     if (volumeGroupRef.current && isRotating) {
       volumeGroupRef.current.rotation.y += delta * 0.12;
+    }
+
+    // Right-controller joystick handling for sliders and depth nudging
+    const right = (xr?.controllers || []).find(c => c?.inputSource?.handedness === 'right');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gp: Gamepad | undefined = right?.inputSource?.gamepad as any;
+    if (gp && gp.axes && gp.axes.length >= 4) {
+      const dead = 0.15;
+      const axX = Math.abs(gp.axes[2]) > dead ? gp.axes[2] : 0;
+      const axY = Math.abs(gp.axes[3]) > dead ? gp.axes[3] : 0;
+
+      if (axX !== 0 || axY !== 0) {
+        // Differential update of THRES MIN (X) and INTERVAL (Y), respecting limits
+        const rate = 0.6; // units per second in slider domain
+        setState(s => {
+          let thMin = s.thresholdMin + axX * rate * delta;
+          thMin = Math.max(0.01, Math.min(0.99, thMin));
+          let interval = s.thresholdInterval + axY * rate * delta;
+          interval = Math.max(0.005, Math.min(1.0 - thMin, interval));
+          if (thMin !== s.thresholdMin || interval !== s.thresholdInterval) {
+            return { ...s, thresholdMin: thMin, thresholdInterval: interval };
+          }
+          return s;
+        });
+
+        // When actively manipulating a corner, allow Y to nudge volume toward/away along view
+        if (selectActiveRef.current && volumeGroupRef.current && axY !== 0) {
+          const parent = volumeGroupRef.current.parent as THREE.Object3D | null;
+          const worldPos = new THREE.Vector3();
+          volumeGroupRef.current.getWorldPosition(worldPos);
+          const viewDir = new THREE.Vector3();
+          camera.getWorldDirection(viewDir); // forward (away from camera)
+          const moveRate = 1.2; // meters per second
+          const deltaWorld = viewDir.multiplyScalar(axY * moveRate * delta);
+          worldPos.add(deltaWorld);
+
+          // Enforce only a max distance (allow getting very close)
+          const camWorld = camera.position.clone();
+          const maxDist = 2.5;
+          const dist = worldPos.distanceTo(camWorld);
+          if (dist > maxDist) {
+            const dir = worldPos.clone().sub(camWorld).normalize();
+            worldPos.copy(camWorld.clone().add(dir.multiplyScalar(maxDist)));
+          }
+
+          if (parent) parent.worldToLocal(worldPos);
+          volumeGroupRef.current.position.copy(worldPos);
+        }
+      }
     }
   });
 

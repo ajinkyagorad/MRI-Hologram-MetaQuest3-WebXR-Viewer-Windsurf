@@ -33,7 +33,7 @@ const InteractiveSuite: React.FC<{
 }> = ({ t1Data, t2Data, state, setState }) => {
   return (
     <group position={[0, 1.35, -0.9]}>
-      <MRIViewer t1Data={t1Data} t2Data={t2Data} state={state} />
+      <MRIViewer t1Data={t1Data} t2Data={t2Data} state={state} setState={setState} />
       <group position={[-0.9, 0, 0.4]} rotation={[0, 0.5, 0]}>
         <Dashboard state={state} setState={setState} />
       </group>
