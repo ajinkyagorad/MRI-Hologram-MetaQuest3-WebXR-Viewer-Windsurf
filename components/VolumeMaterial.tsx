@@ -4,6 +4,7 @@ import * as THREE from 'three';
 export const VolumeShader = {
   uniforms: {
     u_data: { value: null },
+    u_data2: { value: null },
     u_thresholdMin: { value: 0.08 },
     u_thresholdMax: { value: 0.35 },
     u_opacity: { value: 12.0 },
@@ -14,7 +15,11 @@ export const VolumeShader = {
     u_clipZ: { value: 1.0 },
     u_colorMode: { value: 0 },
     u_colorMap: { value: 0 },
-    u_useColorMap: { value: true }
+    u_useColorMap: { value: true },
+    u_mixT1T2: { value: 1.0 }, // 1=T1, 0=T2
+    u_sharpenEnabled: { value: false },
+    u_sharpenStrength: { value: 0.0 },
+    u_texelSize: { value: new (THREE as any).Vector3(0.004, 0.004, 0.004) },
   },
   vertexShader: `
     varying vec3 vOrigin;
@@ -36,6 +41,7 @@ export const VolumeShader = {
     varying vec3 vDirection;
 
     uniform sampler3D u_data;
+    uniform sampler3D u_data2;
     uniform float u_thresholdMin;
     uniform float u_thresholdMax;
     uniform float u_opacity;
@@ -47,6 +53,10 @@ export const VolumeShader = {
     uniform int u_colorMode;
     uniform int u_colorMap;
     uniform bool u_useColorMap;
+    uniform float u_mixT1T2;
+    uniform bool u_sharpenEnabled;
+    uniform float u_sharpenStrength;
+    uniform vec3 u_texelSize;
 
     const int MAX_STEPS = 160; 
 
@@ -128,7 +138,22 @@ export const VolumeShader = {
         bool isClipped = u_clipping && (uvw.x > u_clipX || uvw.y > u_clipY || uvw.z > u_clipZ);
         
         if (!isClipped) {
-          float val = texture(u_data, uvw).r;
+          float v1 = texture(u_data, uvw).r;
+          float v2 = texture(u_data2, uvw).r;
+          float mixed = mix(v2, v1, clamp(u_mixT1T2, 0.0, 1.0));
+
+          // Optional fast sharpening: 6-neighbor unsharp mask
+          if (u_sharpenEnabled) {
+            float nx1 = texture(u_data, uvw + vec3(u_texelSize.x, 0.0, 0.0)).r;
+            float px1 = texture(u_data, uvw - vec3(u_texelSize.x, 0.0, 0.0)).r;
+            float ny1 = texture(u_data, uvw + vec3(0.0, u_texelSize.y, 0.0)).r;
+            float py1 = texture(u_data, uvw - vec3(0.0, u_texelSize.y, 0.0)).r;
+            float nz1 = texture(u_data, uvw + vec3(0.0, 0.0, u_texelSize.z)).r;
+            float pz1 = texture(u_data, uvw - vec3(0.0, 0.0, u_texelSize.z)).r;
+            float avg6 = (nx1 + px1 + ny1 + py1 + nz1 + pz1) / 6.0;
+            mixed = clamp(mixed + u_sharpenStrength * (mixed - avg6), 0.0, 1.0);
+          }
+          float val = mixed;
 
           // Band-pass thresholding: only integrate values within [min, max]
           if (val >= u_thresholdMin && val <= u_thresholdMax) {

@@ -162,7 +162,7 @@ const Dashboard: React.FC<DashboardProps> = ({ state, setState }) => {
         </group>
 
         {/* Color Map Selection */}
-        <group position={[0, -0.06, 0.01]}>
+        <group position={[0, -0.22, 0.01]}>
           <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.05, 0]} anchorX="left" fontWeight="bold">COLOR_MAP</Text>
           <group position={[0, -0.005, 0]}>
             <Button text={"JET"}     width={0.088} height={0.04} position={[-0.14, 0, 0]} active={state.colorMap==='jet'}     onClick={() => updateState('colorMap','jet')} />
@@ -181,10 +181,27 @@ const Dashboard: React.FC<DashboardProps> = ({ state, setState }) => {
           </group>
         </group>
 
+        {/* Fusion and Enhancement */}
+        <group position={[0, -0.34, 0.01]}>
+          <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.05, 0]} anchorX="left" fontWeight="bold">FUSION_ENHANCE</Text>
+          <DraggableSlider label="MIX T1/T2" value={state.mixT1T2} min={0.0} max={1.0} position={[0, -0.02, 0]} onChange={(v: number) => updateState('mixT1T2', v)} />
+          <group position={[0, -0.10, 0]}>
+            <Button 
+              text={state.sharpenEnabled ? "SHARPEN: ON" : "SHARPEN: OFF"}
+              width={0.18}
+              height={0.04}
+              active={state.sharpenEnabled}
+              position={[-0.11, 0, 0]}
+              onClick={() => updateState('sharpenEnabled', !state.sharpenEnabled)} 
+            />
+            <DraggableSlider label="SHARPEN" value={state.sharpenStrength} min={0.0} max={2.0} position={[0.08, 0, 0]} onChange={(v: number) => updateState('sharpenStrength', v)} />
+          </group>
+        </group>
+
         
 
         {/* Spatial Clipping Planes */}
-        <group position={[0, -0.32, 0.01]}>
+        <group position={[0, -0.52, 0.01]}>
            <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.05, 0]} anchorX="left" fontWeight="bold">SPATIAL_CLIPPING_ARRAY</Text>
            <Button 
             text={state.enableSlicing ? "PLANAR_CLIP: ENABLED" : "PLANAR_CLIP: BYPASS"} 

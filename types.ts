@@ -14,6 +14,9 @@ export interface MRIState {
   glareIntensity: number;
   isPassthrough: boolean;
   useColorMap: boolean;
+  mixT1T2: number; // 0 = T2, 1 = T1
+  sharpenEnabled: boolean;
+  sharpenStrength: number; // e.g., 0..2
 }
 
 export interface NiftiData {

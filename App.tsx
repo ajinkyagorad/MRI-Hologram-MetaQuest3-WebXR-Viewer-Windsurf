@@ -62,6 +62,9 @@ const App: React.FC = () => {
     glareIntensity: 0.4,
     isPassthrough: true,
     useColorMap: true,
+    mixT1T2: 1.0,
+    sharpenEnabled: false,
+    sharpenStrength: 0.0,
   });
 
   const store = useMemo(() => createXRStore({
