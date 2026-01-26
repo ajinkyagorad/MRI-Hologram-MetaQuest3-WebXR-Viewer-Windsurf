@@ -1,0 +1,8 @@
+{
+  "name": "MRI Hologram Viewer",
+  "description": "A futuristic WebXR MRI visualization suite for Meta Quest 3, featuring 3D volume rendering of T1 and T2 scans with a cubic interactive dashboard.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
