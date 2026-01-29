@@ -1,6 +1,6 @@
 {
   "$schema": "https://developers.cloudflare.com/wrangler/config-schema.json",
-  "name": "mri-hologram-viewer",
+  "name": "mri-viewer",
   "compatibility_date": "2026-01-29",
   "assets": {
     "directory": "./dist"
