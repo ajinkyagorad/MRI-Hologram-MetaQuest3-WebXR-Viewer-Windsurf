@@ -9,17 +9,9 @@ export const VolumeShader = {
     u_thresholdMax: { value: 0.35 },
     u_opacity: { value: 12.0 },
     u_brightness: { value: 8.0 },
-    u_clipping: { value: false },
-    u_clipX: { value: 1.0 },
-    u_clipY: { value: 1.0 },
-    u_clipZ: { value: 1.0 },
+    u_density: { value: 1.0 },
     u_colorMode: { value: 0 },
-    u_colorMap: { value: 0 },
-    u_useColorMap: { value: true },
     u_mixT1T2: { value: 1.0 }, // 1=T1, 0=T2
-    u_sharpenEnabled: { value: false },
-    u_sharpenStrength: { value: 0.0 },
-    u_texelSize: { value: new (THREE as any).Vector3(0.004, 0.004, 0.004) },
   },
   vertexShader: `
     varying vec3 vOrigin;
@@ -46,60 +38,12 @@ export const VolumeShader = {
     uniform float u_thresholdMax;
     uniform float u_opacity;
     uniform float u_brightness;
-    uniform bool u_clipping;
-    uniform float u_clipX;
-    uniform float u_clipY;
-    uniform float u_clipZ;
+    uniform float u_density;
     uniform int u_colorMode;
-    uniform int u_colorMap;
-    uniform bool u_useColorMap;
     uniform float u_mixT1T2;
-    uniform bool u_sharpenEnabled;
-    uniform float u_sharpenStrength;
-    uniform vec3 u_texelSize;
+    
 
     const int MAX_STEPS = 160; 
-
-    vec3 hsv2rgb(vec3 c) {
-      vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
-      vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
-      return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
-    }
-
-    vec3 colorMapFn(int mapId, float t) {
-      t = clamp(t, 0.0, 1.0);
-      if (mapId == 0) {
-        // jet (blue -> cyan -> yellow -> red)
-        float r = clamp(1.5 - abs(4.0*(t-0.75)), 0.0, 1.0);
-        float g = clamp(1.5 - abs(4.0*(t-0.50)), 0.0, 1.0);
-        float b = clamp(1.5 - abs(4.0*(t-0.25)), 0.0, 1.0);
-        return vec3(r,g,b);
-      } else if (mapId == 1) {
-        // hsv rainbow (full hue sweep)
-        return hsv2rgb(vec3(t, 1.0, 1.0));
-      } else if (mapId == 2) {
-        // turbo (approximation)
-        // Simple vibrant gradient approximation
-        vec3 c1 = vec3(0.19, 0.07, 0.23); // deep purple
-        vec3 c2 = vec3(0.07, 0.62, 0.95); // cyan-blue
-        vec3 c3 = vec3(0.90, 0.90, 0.10); // yellow
-        vec3 c4 = vec3(0.80, 0.20, 0.10); // red-orange
-        vec3 a = mix(c1, c2, smoothstep(0.0, 0.35, t));
-        vec3 b = mix(c3, c4, smoothstep(0.65, 1.0, t));
-        return mix(a, b, smoothstep(0.35, 0.65, t));
-      } else if (mapId == 3) {
-        // inferno (approximation)
-        vec3 d = vec3(0.0, 0.0, 0.0);
-        vec3 e = vec3(0.22, 0.02, 0.19);
-        vec3 f = vec3(0.88, 0.19, 0.12);
-        vec3 g = vec3(1.00, 0.98, 0.80);
-        vec3 a = mix(d, e, smoothstep(0.0, 0.25, t));
-        vec3 b = mix(f, g, smoothstep(0.55, 1.0, t));
-        return mix(a, b, smoothstep(0.25, 0.55, t));
-      }
-      // fallback grayscale
-      return vec3(t);
-    }
 
     // Find intersection of ray with axis-aligned bounding box [-0.5, 0.5]
     vec2 hitBox(vec3 orig, vec3 dir) {
@@ -134,43 +78,30 @@ export const VolumeShader = {
         vec3 localPos = vOrigin + rayDir * t;
         vec3 uvw = localPos + 0.5; // Map [-0.5, 0.5] to [0, 1]
         uvw.y = 1.0 - uvw.y;
-        // Clipping logic
-        bool isClipped = u_clipping && (uvw.x > u_clipX || uvw.y > u_clipY || uvw.z > u_clipZ);
-        
-        if (!isClipped) {
-          float v1 = texture(u_data, uvw).r;
-          float v2 = texture(u_data2, uvw).r;
-          float mixed = mix(v2, v1, clamp(u_mixT1T2, 0.0, 1.0));
+        float v1 = texture(u_data, uvw).r;
+        float v2 = texture(u_data2, uvw).r;
+        float mixed = mix(v2, v1, clamp(u_mixT1T2, 0.0, 1.0));
 
-          // Optional fast sharpening: 6-neighbor unsharp mask
-          if (u_sharpenEnabled) {
-            float nx1 = texture(u_data, uvw + vec3(u_texelSize.x, 0.0, 0.0)).r;
-            float px1 = texture(u_data, uvw - vec3(u_texelSize.x, 0.0, 0.0)).r;
-            float ny1 = texture(u_data, uvw + vec3(0.0, u_texelSize.y, 0.0)).r;
-            float py1 = texture(u_data, uvw - vec3(0.0, u_texelSize.y, 0.0)).r;
-            float nz1 = texture(u_data, uvw + vec3(0.0, 0.0, u_texelSize.z)).r;
-            float pz1 = texture(u_data, uvw - vec3(0.0, 0.0, u_texelSize.z)).r;
-            float avg6 = (nx1 + px1 + ny1 + py1 + nz1 + pz1) / 6.0;
-            mixed = clamp(mixed + u_sharpenStrength * (mixed - avg6), 0.0, 1.0);
-          }
-          float val = mixed;
+        float val = mixed;
 
-          // Band-pass thresholding: only integrate values within [min, max]
-          if (val >= u_thresholdMin && val <= u_thresholdMax) {
-            float denom = max(1e-5, (u_thresholdMax - u_thresholdMin));
-            float norm = clamp((val - u_thresholdMin) / denom, 0.0, 1.0);
-            // Emphasize contrast near threshold and boost highlights
-            float edge = smoothstep(0.0, 1.0, (norm - 0.15) * 1.7);
-            float enhanced = pow(norm, 0.4);
+        // Band-pass thresholding: only integrate values within [min, max]
+        if (val >= u_thresholdMin && val <= u_thresholdMax) {
+          float denom = max(1e-5, (u_thresholdMax - u_thresholdMin));
+          float norm = clamp((val - u_thresholdMin) / denom, 0.0, 1.0);
+          // Emphasize contrast near threshold and boost highlights
+          float edge = smoothstep(0.0, 1.0, (norm - 0.15) * 1.7);
+          float enhanced = pow(norm, 0.4);
 
-            // Front-to-back alpha blending with slightly higher per-step opacity
-            float alpha = edge * u_opacity * 0.0020;
-            vec3 base = u_useColorMap ? colorMapFn(u_colorMap, enhanced) : vec3(enhanced);
-            vec3 color = base * u_brightness;
+          // Map gain to both color and a mild alpha boost
+          float gain = max(0.0, u_brightness);
+          float alphaGain = 0.5 + 0.5 * clamp(gain, 0.0, 1.0);
 
-            accum.rgb += (1.0 - accum.a) * color * alpha;
-            accum.a += (1.0 - accum.a) * alpha;
-          }
+          // Front-to-back alpha blending with density scaling for visibility
+          float alpha = edge * u_opacity * 0.0020 * max(0.0, u_density) * alphaGain;
+          vec3 color = vec3(enhanced) * min(gain, 4.0);
+
+          accum.rgb += (1.0 - accum.a) * color * alpha;
+          accum.a += (1.0 - accum.a) * alpha;
         }
 
         if (accum.a >= 0.95) break;

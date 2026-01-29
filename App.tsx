@@ -34,7 +34,7 @@ const InteractiveSuite: React.FC<{
   return (
     <group position={[0, 1.35, -0.9]}>
       <MRIViewer t1Data={t1Data} t2Data={t2Data} state={state} setState={setState} />
-      <group position={[-0.9, 0, 0.4]} rotation={[0, 0.5, 0]}>
+      <group rotation={[0, 0.5, 0]}>
         <Dashboard state={state} setState={setState} />
       </group>
     </group>
@@ -46,25 +46,20 @@ const App: React.FC = () => {
   const [t2Data, setT2Data] = useState<NiftiData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isXRArmed, setIsXRArmed] = useState(true);
 
   const [state, setState] = useState<MRIState>({
     isT1: true,
     thresholdMin: 0.08,
     thresholdInterval: 0.27,
     opacity: 15.0,   // Dense initial visualization
-    brightness: 12.0, // Clinical gain setting
-    sliceX: 1.0,
-    sliceY: 1.0,
-    sliceZ: 1.0,
-    enableSlicing: false,
+    brightness: 1.0, // Clinical gain setting (0..1)
+    brightnessFine: 1.0, // Fine gain multiplier
     isVolumeRendering: true,
-    colorMap: 'jet',
     glareIntensity: 0.4,
     isPassthrough: true,
-    useColorMap: true,
     mixT1T2: 1.0,
-    sharpenEnabled: false,
-    sharpenStrength: 0.0,
+    dashboardPos: [-0.9, 0, 0.4],
   });
 
   const store = useMemo(() => createXRStore({
@@ -101,6 +96,13 @@ const App: React.FC = () => {
     }
   }, [store, state.isPassthrough]);
 
+  const handleFirstInteraction = useCallback(() => {
+    if (!isXRArmed) return;
+    if (loading || error) return;
+    setIsXRArmed(false);
+    void handleEnterXR();
+  }, [error, handleEnterXR, isXRArmed, loading]);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -121,6 +123,14 @@ const App: React.FC = () => {
 
   return (
     <div className="w-full h-screen bg-black relative overflow-hidden">
+      {isXRArmed && !loading && !error && (
+        <div
+          className="absolute inset-0 pointer-events-auto"
+          onPointerDown={handleFirstInteraction}
+          onTouchStart={handleFirstInteraction}
+          onClick={handleFirstInteraction}
+        />
+      )}
       <Canvas 
         gl={{ antialias: true, alpha: true, depth: true, powerPreference: "high-performance" }}
         onCreated={({ gl }) => {
@@ -155,14 +165,7 @@ const App: React.FC = () => {
            <div className="bg-red-950/20 border border-red-500 px-10 py-5 backdrop-blur-2xl">
               <p className="text-red-400 font-mono text-xs uppercase tracking-widest">{error}</p>
            </div>
-        ) : (
-          <button 
-            onClick={handleEnterXR}
-            className="px-20 py-6 bg-teal-500 text-black font-bold rounded-sm text-xs pointer-events-auto hover:bg-white transition-all tracking-[0.5em] uppercase shadow-[0_0_80px_rgba(20,184,166,0.5)] active:scale-95"
-          >
-            Enter Holographic Suite
-          </button>
-        )}
+        ) : null}
       </div>
     </div>
   );

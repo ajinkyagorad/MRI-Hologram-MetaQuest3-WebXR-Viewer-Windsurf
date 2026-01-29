@@ -5,18 +5,12 @@ export interface MRIState {
   thresholdInterval: number;
   opacity: number;
   brightness: number;
-  sliceX: number;
-  sliceY: number;
-  sliceZ: number;
-  enableSlicing: boolean;
+  brightnessFine: number;
   isVolumeRendering: boolean;
-  colorMap: 'jet' | 'hsv' | 'turbo' | 'inferno';
   glareIntensity: number;
   isPassthrough: boolean;
-  useColorMap: boolean;
   mixT1T2: number; // 0 = T2, 1 = T1
-  sharpenEnabled: boolean;
-  sharpenStrength: number; // e.g., 0..2
+  dashboardPos: [number, number, number];
 }
 
 export interface NiftiData {

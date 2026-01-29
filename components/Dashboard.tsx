@@ -8,15 +8,7 @@ import { audioService } from '../services/audio';
 
 interface DashboardProps { state: MRIState; setState: React.Dispatch<React.SetStateAction<MRIState>>; }
 
-const Button = memo(({ text, width, height, position = [0, 0, 0], onClick, active }: any) => (
-  <group position={position} onPointerDown={(e) => { e.stopPropagation(); onClick(); }}>
-    <mesh>
-      <planeGeometry args={[width, height]} />
-      <meshBasicMaterial color={active ? "#0d9488" : "#1e293b"} />
-    </mesh>
-    <Text fontSize={0.014} color="#ffffff" position={[0, 0, 0.01]} fontWeight="bold">{text}</Text>
-  </group>
-));
+// Removed Button UI component (not used)
 
 const DraggableSlider = memo(({ label, value, min, max, position, onChange }: any) => {
   const [isDragging, setIsDragging] = useState(false);
@@ -118,33 +110,47 @@ const Dashboard: React.FC<DashboardProps> = ({ state, setState }) => {
     setState(s => ({ ...s, [key]: val }));
   }, [setState]);
 
-  return (
-    <group>
-      <Panel title="MRI_SYSTEM_CONTROL // v4.2" width={0.46} height={0.96}>
-        
-        {/* Diagnostic Modality */}
-        <group position={[0, 0.35, 0.01]}>
-          <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.06, 0]} anchorX="left" fontWeight="bold">DATA_INPUT_CHANNEL</Text>
-          <Button 
-            text={state.isT1 ? "MODE: T1 (MORPHOLOGY)" : "MODE: T2 (FLUID_PATH)"} 
-            width={0.38}
-            height={0.08}
-            active={state.isT1}
-            onClick={() => {
-                audioService.playSoftBeep(440);
-                updateState('isT1', !state.isT1);
-            }} 
-          />
-        </group>
+  // Draggable panel support
+  const panelRef = useRef<THREE.Group>(null);
+  const dashPointerId = useRef<number | null>(null);
+  const onPanelDown = useCallback((e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    if (dashPointerId.current !== null) return;
+    dashPointerId.current = e.pointerId;
+    (e.target as any).setPointerCapture?.(e.pointerId);
+  }, []);
+  const onPanelMove = useCallback((e: ThreeEvent<PointerEvent>) => {
+    if (dashPointerId.current !== e.pointerId) return;
+    e.stopPropagation();
+    if (!panelRef.current) return;
+    const local = new THREE.Vector3().copy(e.point);
+    panelRef.current.parent?.worldToLocal(local);
+    setState(s => ({ ...s, dashboardPos: [local.x, local.y, local.z] }));
+  }, [setState]);
+  const onPanelUp = useCallback((e: ThreeEvent<PointerEvent>) => {
+    if (dashPointerId.current !== e.pointerId) return;
+    e.stopPropagation();
+    dashPointerId.current = null;
+    (e.target as any).releasePointerCapture?.(e.pointerId);
+  }, []);
 
-        {/* Visualization Filters */}
-        <group position={[0, 0.12, 0.01]}>
+  return (
+    <group ref={panelRef}
+           position={state.dashboardPos as any}
+           onPointerDown={onPanelDown}
+           onPointerMove={onPanelMove}
+           onPointerUp={onPanelUp}
+           onPointerCancel={onPanelUp}>
+      <Panel title="" width={0.46} height={0.96}>
+
+        {/* Visualization Controls */}
+        <group position={[0, 0.28, 0.01]}>
           <DraggableSlider
             label="THRES MIN"
             value={state.thresholdMin}
             min={0.01}
             max={0.99}
-            position={[0, 0.10, 0]}
+            position={[0, 0.16, 0]}
             onChange={(v: number) => setState(s => ({ ...s, thresholdMin: Math.min(v, 0.99) }))}
           />
           <DraggableSlider
@@ -152,76 +158,23 @@ const Dashboard: React.FC<DashboardProps> = ({ state, setState }) => {
             value={state.thresholdInterval}
             min={0.005}
             max={1.0}
-            position={[0, 0.02, 0]}
+            position={[0, 0.08, 0]}
             onChange={(v: number) =>
               setState(s => ({ ...s, thresholdInterval: Math.max(0.005, Math.min(v, 1.0 - s.thresholdMin)) }))
             }
           />
-          <DraggableSlider label="ALPHA" value={state.opacity} min={0.5} max={15.0} position={[0, -0.06, 0]} onChange={(v: number) => updateState('opacity', v)} />
-          <DraggableSlider label="GAIN" value={state.brightness} min={1.0} max={60.0} position={[0, -0.16, 0]} onChange={(v: number) => updateState('brightness', v)} />
+          <DraggableSlider label="ALPHA" value={state.opacity} min={0.5} max={15.0} position={[0, 0.00, 0]} onChange={(v: number) => updateState('opacity', v)} />
+          <DraggableSlider label="GAIN" value={state.brightness} min={0.0} max={1.0} position={[0, -0.08, 0]} onChange={(v: number) => updateState('brightness', v)} />
+          <DraggableSlider label="DENSITY" value={state.brightnessFine} min={0.0} max={2.0} position={[0, -0.16, 0]} onChange={(v: number) => updateState('brightnessFine', v)} />
         </group>
 
-        {/* Color Map Selection */}
-        <group position={[0, -0.22, 0.01]}>
-          <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.05, 0]} anchorX="left" fontWeight="bold">COLOR_MAP</Text>
-          <group position={[0, -0.005, 0]}>
-            <Button text={"JET"}     width={0.088} height={0.04} position={[-0.14, 0, 0]} active={state.colorMap==='jet'}     onClick={() => updateState('colorMap','jet')} />
-            <Button text={"HSV"}     width={0.088} height={0.04} position={[-0.046, 0, 0]} active={state.colorMap==='hsv'}     onClick={() => updateState('colorMap','hsv')} />
-            <Button text={"TURBO"}   width={0.088} height={0.04} position={[0.048, 0, 0]}  active={state.colorMap==='turbo'}   onClick={() => updateState('colorMap','turbo')} />
-            <Button text={"INFERNO"} width={0.088} height={0.04} position={[0.142, 0, 0]}  active={state.colorMap==='inferno'} onClick={() => updateState('colorMap','inferno')} />
-          </group>
-          <group position={[0, -0.055, 0]}>
-            <Button 
-              text={state.useColorMap ? "GRADIENT: ON" : "GRADIENT: OFF"}
-              width={0.38}
-              height={0.04}
-              active={state.useColorMap}
-              onClick={() => updateState('useColorMap', !state.useColorMap)} 
-            />
-          </group>
+        {/* Fusion */}
+        <group position={[0, -0.26, 0.01]}>
+          <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.02, 0]} anchorX="left" fontWeight="bold">FUSION</Text>
+          <DraggableSlider label="MIX T1/T2" value={state.mixT1T2} min={0.0} max={1.0} position={[0, 0.0, 0]} onChange={(v: number) => updateState('mixT1T2', v)} />
         </group>
 
-        {/* Fusion and Enhancement */}
-        <group position={[0, -0.34, 0.01]}>
-          <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.05, 0]} anchorX="left" fontWeight="bold">FUSION_ENHANCE</Text>
-          <DraggableSlider label="MIX T1/T2" value={state.mixT1T2} min={0.0} max={1.0} position={[0, -0.02, 0]} onChange={(v: number) => updateState('mixT1T2', v)} />
-          <group position={[0, -0.10, 0]}>
-            <Button 
-              text={state.sharpenEnabled ? "SHARPEN: ON" : "SHARPEN: OFF"}
-              width={0.18}
-              height={0.04}
-              active={state.sharpenEnabled}
-              position={[-0.11, 0, 0]}
-              onClick={() => updateState('sharpenEnabled', !state.sharpenEnabled)} 
-            />
-            <DraggableSlider label="SHARPEN" value={state.sharpenStrength} min={0.0} max={2.0} position={[0.08, 0, 0]} onChange={(v: number) => updateState('sharpenStrength', v)} />
-          </group>
-        </group>
-
-        
-
-        {/* Spatial Clipping Planes */}
-        <group position={[0, -0.52, 0.01]}>
-           <Text fontSize={0.012} color="#94a3b8" position={[-0.19, 0.05, 0]} anchorX="left" fontWeight="bold">SPATIAL_CLIPPING_ARRAY</Text>
-           <Button 
-            text={state.enableSlicing ? "PLANAR_CLIP: ENABLED" : "PLANAR_CLIP: BYPASS"} 
-            width={0.38}
-            height={0.06}
-            active={state.enableSlicing}
-            onClick={() => {
-                audioService.playSoftBeep(261);
-                updateState('enableSlicing', !state.enableSlicing);
-            }} 
-          />
-          {state.enableSlicing && (
-             <group position={[0, -0.08, 0]}>
-                <DraggableSlider label="CLIP X" value={state.sliceX} min={0} max={1} position={[0, 0, 0]} onChange={(v: number) => updateState('sliceX', v)} />
-                <DraggableSlider label="CLIP Y" value={state.sliceY} min={0} max={1} position={[0, -0.08, 0]} onChange={(v: number) => updateState('sliceY', v)} />
-                <DraggableSlider label="CLIP Z" value={state.sliceZ} min={0} max={1} position={[0, -0.16, 0]} onChange={(v: number) => updateState('sliceZ', v)} />
-             </group>
-          )}
-        </group>
-      </Panel>
+              </Panel>
     </group>
   );
 };
@@ -238,9 +191,6 @@ const Panel = ({ title, width, height, children }: any) => (
         <planeGeometry args={[width, 0.006]} />
         <meshBasicMaterial color="#2dd4bf" />
     </mesh>
-    <Text position={[0, height / 2 - 0.04, 0.01]} fontSize={0.02} color="#2dd4bf" anchorY="top" letterSpacing={0.12} fontWeight="bold">
-      {title}
-    </Text>
     {children}
   </group>
 );
