@@ -1,0 +1,8 @@
+[{ 
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.nebulytic.mriviewer",
+        "sha256_cert_fingerprints": ["67:5C:60:88:0A:B9:4D:34:81:3B:5D:8F:4C:12:3C:D7:2C:7C:A5:81:20:A8:BE:B5:52:E2:98:36:A2:F4:75:9F"]
+      }
+    }]
