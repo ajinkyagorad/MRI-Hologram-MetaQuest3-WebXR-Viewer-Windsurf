@@ -1,0 +1,21 @@
+{
+  "name": "MRI Hologram Viewer",
+  "short_name": "MRI Viewer",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "background_color": "#7CC0FF",
+  "theme_color": "#7CC0FF",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
